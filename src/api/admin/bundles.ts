@@ -16,7 +16,17 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.status(200).json(data);
+  // Map fields to match frontend expectation
+  const mappedBundles = data?.map(bundle => ({
+    ...bundle,
+    data_amount: bundle.volume_mb >= 1024 
+      ? `${(bundle.volume_mb / 1024).toFixed(1)}GB` 
+      : `${bundle.volume_mb}MB`,
+    price_ghs: bundle.price_pesewas / 100,
+    updated_at: bundle.created_at // fallback if updated_at is missing in DB
+  }));
+
+  res.status(200).json(mappedBundles);
 });
 
 // POST /api/admin/bundles - Creates a new data bundle

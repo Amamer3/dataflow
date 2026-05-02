@@ -8,13 +8,14 @@ const router = express.Router();
 router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   const { status, type, userId, limit = 50, offset = 0 } = req.query;
 
+  // Try fetching with profiles first, if it fails, fallback to without profiles
   let query = supabaseAdmin
     .from('transactions')
     .select(`
       *,
       profiles (
         full_name,
-        phone 
+        phone
       )
     `, { count: 'exact' });
 
@@ -22,15 +23,42 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   if (type) query = query.eq('type', type as any);
   if (userId) query = query.eq('user_id', userId as string);
 
-  const { data, error, count } = await query
+  let { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(Number(offset), Number(offset) + Number(limit) - 1);
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    console.error('Error fetching transactions with profiles:', error);
+    
+    // Fallback: fetch without profiles
+    const fallbackQuery = supabaseAdmin
+      .from('transactions')
+      .select('*', { count: 'exact' });
+    
+    if (status) fallbackQuery.eq('status', status as any);
+    if (type) fallbackQuery.eq('type', type as any);
+    if (userId) fallbackQuery.eq('user_id', userId as string);
+
+    const { data: fbData, error: fbError, count: fbCount } = await fallbackQuery
+      .order('created_at', { ascending: false })
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
+    
+    if (fbError) {
+      console.error('Error fetching transactions (fallback):', fbError);
+      return res.status(500).json({ error: fbError.message });
+    }
+    
+    data = fbData as any;
+    count = fbCount;
   }
 
-  res.status(200).json({ data, count });
+  res.status(200).json({
+    transactions: data?.map((t: any) => ({
+      ...t,
+      profiles: Array.isArray(t.profiles) ? t.profiles[0] || null : t.profiles
+    })),
+    total: count
+  });
 });
 
 // PATCH /api/admin/transactions/:id - Updates a transaction's status or retry count

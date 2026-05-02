@@ -9,30 +9,66 @@ const router = express.Router();
 router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   const { search } = req.query;
   
-  let query = supabaseAdmin
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      phone,
-      role,
-      created_at,
-      wallets (
-        balance_pesewas
-      )
-    `);
+  try {
+    // Try fetching with wallets first
+    let query = supabaseAdmin
+      .from('profiles')
+      .select(`
+        id,
+        full_name,
+        phone,
+        role,
+        created_at,
+        wallets (
+          balance_pesewas,
+          currency,
+          updated_at
+        )
+      `);
 
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+    }
+
+    let { data: profiles, error: profilesErr } = await query.order('created_at', { ascending: false });
+
+    if (profilesErr) {
+      console.error('Error fetching profiles with wallets:', profilesErr);
+      // Fallback: fetch without wallets
+      const fallbackQuery = supabaseAdmin.from('profiles').select('id, full_name, phone, role, created_at');
+      if (search) fallbackQuery.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+      const { data, error: fbErr } = await fallbackQuery.order('created_at', { ascending: false });
+      if (fbErr) throw fbErr;
+      profiles = data;
+    }
+
+    // Fetch auth users to get emails
+    const { data: { users: authUsers }, error: authErr } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (authErr) {
+      console.error('Error fetching auth users:', authErr);
+      // We can still return profiles even if auth users fail
+    }
+
+    // Merge profiles with auth user data
+    const mergedUsers = profiles?.map(profile => {
+      const authUser = authUsers?.find(u => u.id === profile.id);
+      return {
+        ...profile,
+        // Ensure wallets is an object, not an array (Supabase returns an array for 1-to-1 if not specified)
+        wallets: Array.isArray(profile.wallets) ? profile.wallets[0] || null : profile.wallets,
+        auth_users: {
+          email: authUser?.email || 'N/A',
+          created_at: authUser?.created_at || profile.created_at
+        }
+      };
+    });
+
+    res.status(200).json(mergedUsers);
+  } catch (error: any) {
+    console.error('Admin Users API Error:', error);
+    res.status(500).json({ error: error.message });
   }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
-  res.status(200).json(data);
 });
 
 // POST /api/admin/users/wallet - Credits or debits a user's wallet

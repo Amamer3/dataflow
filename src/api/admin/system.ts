@@ -30,15 +30,18 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
       ?.filter(t => t.status === 'success')
       .reduce((sum, t) => sum + t.amount_pesewas, 0) ?? 0;
 
+    const totalTransactions = recentTransactions?.length ?? 0;
+    const successTransactions = recentTransactions?.filter(t => t.status === 'success').length ?? 0;
+    const failedTransactions = recentTransactions?.filter(t => t.status === 'failed').length ?? 0;
+    const successRate = totalTransactions > 0 ? (successTransactions / totalTransactions) * 100 : 0;
+
     res.status(200).json({
-      usersCount: usersCount ?? 0,
-      activeBundlesCount: activeBundlesCount ?? 0,
-      recentRevenuePesewas: totalRevenue,
-      transactionSummary: {
-        total: recentTransactions?.length ?? 0,
-        success: recentTransactions?.filter(t => t.status === 'success').length ?? 0,
-        failed: recentTransactions?.filter(t => t.status === 'failed').length ?? 0,
-      }
+      totalUsers: usersCount ?? 0,
+      totalTransactions: totalTransactions,
+      totalRevenue: totalRevenue,
+      successRate: successRate,
+      failedTransactions: failedTransactions,
+      recentTransactions: recentTransactions ?? []
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
