@@ -1,5 +1,5 @@
 // Wallet helpers using the admin (service role) client. Server-only.
-import { supabaseAdmin } from "../integrations/supabase/client.server";
+import { supabaseAdmin } from "../integrations/supabase/client.server.js";
 
 export type LedgerReason =
   | "data_purchase"

@@ -1,10 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
-import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware';
-import { supabaseAdmin } from '../../integrations/supabase/client.server';
-import { paystackVerify } from '../../server/paystack.server.ts';
-import { applyWalletDelta } from '../../server/wallet.server.ts';
-import { deliverBundle } from '../../server/provider.server.ts';
+import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
+import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
+import { paystackVerify } from '../../server/paystack.server.js';
+import { applyWalletDelta } from '../../server/wallet.server.js';
+import { deliverBundle } from '../../server/provider.server.js';
 
 const router = express.Router();
  

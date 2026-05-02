@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
-import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware';
-import { supabaseAdmin } from '../../integrations/supabase/client.server';
+import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
+import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 
 const router = express.Router();
 
