@@ -23,33 +23,12 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   if (type) query = query.eq('type', type as any);
   if (userId) query = query.eq('user_id', userId as string);
 
-  let { data, error, count } = await query
+  const { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(Number(offset), Number(offset) + Number(limit) - 1);
 
   if (error) {
-    console.error('Error fetching transactions with profiles:', error);
-    
-    // Fallback: fetch without profiles
-    const fallbackQuery = supabaseAdmin
-      .from('transactions')
-      .select('*', { count: 'exact' });
-    
-    if (status) fallbackQuery.eq('status', status as any);
-    if (type) fallbackQuery.eq('type', type as any);
-    if (userId) fallbackQuery.eq('user_id', userId as string);
-
-    const { data: fbData, error: fbError, count: fbCount } = await fallbackQuery
-      .order('created_at', { ascending: false })
-      .range(Number(offset), Number(offset) + Number(limit) - 1);
-    
-    if (fbError) {
-      console.error('Error fetching transactions (fallback):', fbError);
-      return res.status(500).json({ error: fbError.message });
-    }
-    
-    data = fbData as any;
-    count = fbCount;
+    return res.status(500).json({ error: error.message });
   }
 
   res.status(200).json({

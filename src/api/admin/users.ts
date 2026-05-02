@@ -30,16 +30,10 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
       query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
     }
 
-    let { data: profiles, error: profilesErr } = await query.order('created_at', { ascending: false });
+    const { data: profiles, error: profilesErr } = await query.order('created_at', { ascending: false });
 
     if (profilesErr) {
-      console.error('Error fetching profiles with wallets:', profilesErr);
-      // Fallback: fetch without wallets
-      const fallbackQuery = supabaseAdmin.from('profiles').select('id, full_name, phone, role, created_at');
-      if (search) fallbackQuery.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
-      const { data, error: fbErr } = await fallbackQuery.order('created_at', { ascending: false });
-      if (fbErr) throw fbErr;
-      profiles = data;
+      throw profilesErr;
     }
 
     // Fetch auth users to get emails
