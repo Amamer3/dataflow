@@ -78,4 +78,31 @@ router.get('/logs', adminMiddleware, async (req: AuthRequest, res) => {
   res.status(200).json(mockLogs);
 });
 
+// GET /api/admin/health - Provides system health metrics
+router.get('/health', adminMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { data: recentTransactions, error } = await supabaseAdmin
+      .from('transactions')
+      .select('status')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    const total = recentTransactions?.length ?? 0;
+    const failed = recentTransactions?.filter(t => t.status === 'failed').length ?? 0;
+    const errorRate = total > 0 ? (failed / total) * 100 : 0;
+
+    res.status(200).json({
+      status: 'healthy',
+      uptime: process.uptime(),
+      errorRate: `${errorRate.toFixed(2)}%`,
+      responseTime: '245ms', // Mocked for now as we don't have middleware tracking this
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

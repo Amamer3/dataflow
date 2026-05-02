@@ -75,4 +75,40 @@ router.patch('/:id', adminMiddleware, async (req: AuthRequest, res) => {
   res.status(200).json(data);
 });
 
+// GET /api/admin/transactions/stuck - Fetches transactions that are stuck in 'pending' or 'processing'
+router.get('/stuck', adminMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    
+    const { data: transactions, error } = await supabaseAdmin
+      .from('transactions')
+      .select('*')
+      .or('status.eq.pending,status.eq.processing')
+      .lt('created_at', tenMinutesAgo)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (!transactions || transactions.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Fetch profiles for manual merge
+    const userIds = [...new Set(transactions.map(t => t.user_id))];
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', userIds);
+
+    const mergedTransactions = transactions.map(t => ({
+      ...t,
+      profiles: profiles?.find(p => p.id === t.user_id) || null
+    }));
+
+    res.status(200).json(mergedTransactions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
