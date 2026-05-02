@@ -10,21 +10,10 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   const { search } = req.query;
   
   try {
-    // Try fetching with wallets first
+    // 1. Fetch profiles first
     let query = supabaseAdmin
       .from('profiles')
-      .select(`
-        id,
-        full_name,
-        phone,
-        role,
-        created_at,
-        wallets (
-          balance_pesewas,
-          currency,
-          updated_at
-        )
-      `);
+      .select('id, full_name, phone, role, created_at');
 
     if (search) {
       query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
@@ -32,25 +21,38 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
 
     const { data: profiles, error: profilesErr } = await query.order('created_at', { ascending: false });
 
-    if (profilesErr) {
-      throw profilesErr;
+    if (profilesErr) throw profilesErr;
+
+    if (!profiles || profiles.length === 0) {
+      return res.status(200).json([]);
     }
 
-    // Fetch auth users to get emails
+    // 2. Fetch wallets for these users
+    const userIds = profiles.map(p => p.id);
+    const { data: wallets, error: walletsErr } = await supabaseAdmin
+      .from('wallets')
+      .select('user_id, balance_pesewas, currency, updated_at')
+      .in('user_id', userIds);
+
+    if (walletsErr) {
+      console.error('Error fetching wallets for users:', walletsErr);
+    }
+
+    // 3. Fetch auth users to get emails
     const { data: { users: authUsers }, error: authErr } = await supabaseAdmin.auth.admin.listUsers();
     
     if (authErr) {
       console.error('Error fetching auth users:', authErr);
-      // We can still return profiles even if auth users fail
     }
 
-    // Merge profiles with auth user data
-    const mergedUsers = profiles?.map(profile => {
+    // 4. Merge all data
+    const mergedUsers = profiles.map(profile => {
       const authUser = authUsers?.find(u => u.id === profile.id);
+      const wallet = wallets?.find(w => w.user_id === profile.id);
+      
       return {
         ...profile,
-        // Ensure wallets is an object, not an array (Supabase returns an array for 1-to-1 if not specified)
-        wallets: Array.isArray(profile.wallets) ? profile.wallets[0] || null : profile.wallets,
+        wallets: wallet || null,
         auth_users: {
           email: authUser?.email || 'N/A',
           created_at: authUser?.created_at || profile.created_at

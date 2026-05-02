@@ -8,36 +8,52 @@ const router = express.Router();
 router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
   const { status, type, userId, limit = 50, offset = 0 } = req.query;
 
-  // Try fetching with profiles first, if it fails, fallback to without profiles
-  let query = supabaseAdmin
-    .from('transactions')
-    .select(`
-      *,
-      profiles (
-        full_name,
-        phone
-      )
-    `, { count: 'exact' });
+  try {
+    // 1. Fetch transactions without profiles join
+    let query = supabaseAdmin
+      .from('transactions')
+      .select('*', { count: 'exact' });
 
-  if (status) query = query.eq('status', status as any);
-  if (type) query = query.eq('type', type as any);
-  if (userId) query = query.eq('user_id', userId as string);
+    if (status) query = query.eq('status', status as any);
+    if (type) query = query.eq('type', type as any);
+    if (userId) query = query.eq('user_id', userId as string);
 
-  const { data, error, count } = await query
-    .order('created_at', { ascending: false })
-    .range(Number(offset), Number(offset) + Number(limit) - 1);
+    const { data: transactions, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
+    if (error) throw error;
 
-  res.status(200).json({
-    transactions: data?.map((t: any) => ({
+    if (!transactions || transactions.length === 0) {
+      return res.status(200).json({ transactions: [], total: count ?? 0 });
+    }
+
+    // 2. Fetch profiles for all unique user_ids in the transactions
+    const userIds = [...new Set(transactions.map(t => t.user_id))];
+    const { data: profiles, error: profilesErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', userIds);
+
+    if (profilesErr) {
+      console.error('Error fetching profiles for transactions:', profilesErr);
+      // We can still return transactions even if profiles fail
+    }
+
+    // 3. Manually merge profiles into transactions
+    const mergedTransactions = transactions.map(t => ({
       ...t,
-      profiles: Array.isArray(t.profiles) ? t.profiles[0] || null : t.profiles
-    })),
-    total: count
-  });
+      profiles: profiles?.find(p => p.id === t.user_id) || null
+    }));
+
+    res.status(200).json({
+      transactions: mergedTransactions,
+      total: count
+    });
+  } catch (error: any) {
+    console.error('Admin Transactions API Error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // PATCH /api/admin/transactions/:id - Updates a transaction's status or retry count
