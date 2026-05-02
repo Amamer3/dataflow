@@ -18,13 +18,27 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
 
     const { data: recentTransactions, error: txnsErr } = await supabaseAdmin
       .from('transactions')
-      .select('amount_pesewas, status')
+      .select('amount_pesewas, status, created_at, user_id')
       .order('created_at', { ascending: false })
       .limit(100);
 
     if (usersErr || bundlesErr || txnsErr) {
       throw new Error('Failed to fetch stats');
     }
+
+    // Fetch profiles for manual merge to avoid relationship errors
+    const userIds = [...new Set(recentTransactions?.map(t => t.user_id) ?? [])];
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', userIds);
+
+    const mergedRecentTransactions = recentTransactions?.map(t => ({
+      amount_pesewas: t.amount_pesewas,
+      status: t.status,
+      created_at: t.created_at,
+      profiles: profiles?.find(p => p.id === t.user_id) || null
+    })) ?? [];
 
     const totalRevenue = recentTransactions
       ?.filter(t => t.status === 'success')
@@ -41,7 +55,7 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
       totalRevenue: totalRevenue,
       successRate: successRate,
       failedTransactions: failedTransactions,
-      recentTransactions: recentTransactions ?? []
+      recentTransactions: mergedRecentTransactions
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
