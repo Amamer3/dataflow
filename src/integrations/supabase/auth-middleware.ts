@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types.js";
+import { supabaseAdmin } from "./client.server.js";
 
 function getSupabaseEnv() {
   const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -35,7 +36,12 @@ function getSupabaseAuthClient(token: string) {
   });
 }
 
-export async function getUserIdFromAccessToken(token: string): Promise<string> {
+export type AuthenticatedUser = {
+  userId: string;
+  role: Database["public"]["Tables"]["profiles"]["Row"]["role"] | null;
+};
+
+export async function getUserFromAccessToken(token: string): Promise<AuthenticatedUser> {
   if (!token) {
     throw new Error("Unauthorized: No token provided");
   }
@@ -46,5 +52,20 @@ export async function getUserIdFromAccessToken(token: string): Promise<string> {
     throw new Error("Unauthorized: Invalid token");
   }
 
-  return data.claims.sub;
+  const userId = data.claims.sub;
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (profileError || !profile) {
+    throw new Error("Unauthorized: Unable to resolve user role");
+  }
+
+  return { userId, role: profile.role ?? null };
+}
+
+export async function getUserIdFromAccessToken(token: string): Promise<string> {
+  return (await getUserFromAccessToken(token)).userId;
 }

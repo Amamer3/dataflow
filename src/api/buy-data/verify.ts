@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
+import { getUserFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 import { paystackVerify } from '../../server/paystack.server.js';
 import { applyWalletDelta } from '../../server/wallet.server.js';
@@ -23,7 +23,7 @@ router.post('/verify', async (req, res) => {
 
   const { accessToken, reference } = data.data;
   try {
-    const userId = await getUserIdFromAccessToken(accessToken);
+    const { userId, role } = await getUserFromAccessToken(accessToken);
 
     const { data: txn, error: txnError } = await supabaseAdmin
       .from('transactions')

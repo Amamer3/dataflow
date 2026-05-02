@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
+import { getUserFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 
 const router = express.Router();
@@ -20,7 +20,7 @@ router.post('/topup', async (req, res) => {
 
   const { accessToken, amountGhs } = data.data;
   try {
-    const userId = await getUserIdFromAccessToken(accessToken);
+    const { userId, role } = await getUserFromAccessToken(accessToken);
     const reference = `TOPUP-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const amountPesewas = Math.round(amountGhs * 100);
 

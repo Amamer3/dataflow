@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { getUserIdFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
+import { getUserFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 import { applyWalletDelta } from '../../server/wallet.server.js';
 import { deliverBundle } from '../../server/provider.server.js';
@@ -24,7 +24,7 @@ router.post('/initiate', async (req, res) => {
 
   const { accessToken, bundleId, phone, payWithWallet } = data.data;
   try {
-    const userId = await getUserIdFromAccessToken(accessToken);
+    const { userId, role } = await getUserFromAccessToken(accessToken);
 
     const { data: bundle, error: bundleError } = await supabaseAdmin
       .from('bundles')
