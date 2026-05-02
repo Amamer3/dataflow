@@ -1,8 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import { apiReference } from '@scalar/express-api-reference';
 import buyDataRoutes from './api/buy-data/index.js';
 import walletRoutes from './api/wallet/index.js';
-import paystackKeyRouter from './api/paystack-public-key.js';
+import adminRoutes from './api/admin/index.js';
+import apiRouter from './api/index.js';
+import { openApiSpec } from './openapi.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -11,14 +14,26 @@ app.use(cors());
 app.use(express.json());
 
 // Health check route
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.status(200).json({ message: 'Backend server is running', version: '1.0.0' });
 });
 
+// API docs
+app.use(
+  '/docs',
+  apiReference({
+    spec: {
+      content: openApiSpec,
+    },
+  } as any)
+);
+app.get('/docs.json', (_req, res) => res.json(openApiSpec));
+
 // Routes
+app.use('/api/admin', adminRoutes);
 app.use('/api/buy-data', buyDataRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use('/api', paystackKeyRouter);
+app.use('/api', apiRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
