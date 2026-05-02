@@ -7,11 +7,11 @@ const router = express.Router();
 // GET /api/admin/stats - Provides summary statistics for the admin dashboard
 router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { data: usersCount, error: usersErr } = await supabaseAdmin
+    const { count: usersCount, error: usersErr } = await supabaseAdmin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    const { data: activeBundlesCount, error: bundlesErr } = await supabaseAdmin
+    const { count: activeBundlesCount, error: bundlesErr } = await supabaseAdmin
       .from('bundles')
       .select('*', { count: 'exact', head: true })
       .eq('active', true);
@@ -22,7 +22,11 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
       .order('created_at', { ascending: false })
       .limit(100);
 
-    if (usersErr || bundlesErr || txnsErr) {
+    const { count: totalTransactionsCount, error: totalTxnsErr } = await supabaseAdmin
+      .from('transactions')
+      .select('*', { count: 'exact', head: true });
+
+    if (usersErr || bundlesErr || txnsErr || totalTxnsErr) {
       throw new Error('Failed to fetch stats');
     }
 
@@ -44,14 +48,15 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
       ?.filter(t => t.status === 'success')
       .reduce((sum, t) => sum + t.amount_pesewas, 0) ?? 0;
 
-    const totalTransactions = recentTransactions?.length ?? 0;
+    const recentTransactionsCount = recentTransactions?.length ?? 0;
     const successTransactions = recentTransactions?.filter(t => t.status === 'success').length ?? 0;
     const failedTransactions = recentTransactions?.filter(t => t.status === 'failed').length ?? 0;
-    const successRate = totalTransactions > 0 ? (successTransactions / totalTransactions) * 100 : 0;
+    const successRate = recentTransactionsCount > 0 ? (successTransactions / recentTransactionsCount) * 100 : 0;
 
     res.status(200).json({
       totalUsers: usersCount ?? 0,
-      totalTransactions: totalTransactions,
+      activeBundles: activeBundlesCount ?? 0,
+      totalTransactions: totalTransactionsCount ?? 0,
       totalRevenue: totalRevenue,
       successRate: successRate,
       failedTransactions: failedTransactions,
