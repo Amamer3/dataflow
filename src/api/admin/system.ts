@@ -73,46 +73,63 @@ router.get('/logs', adminMiddleware, async (_req: AuthRequest, res) => {
     // 1. Fetch Admin Audit Logs
     const { data: adminLogs, error: adminErr } = await supabaseAdmin
       .from('admin_audit_log')
-      .select('*, profiles:admin_id(full_name, phone)')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(50);
 
     // 2. Fetch User Transaction Activity
     const { data: userActions, error: userErr } = await supabaseAdmin
       .from('transactions')
-      .select('id, created_at, type, status, amount_pesewas, recipient_phone, profiles:user_id(full_name, phone)')
+      .select('id, created_at, type, status, amount_pesewas, recipient_phone, user_id')
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (adminErr || userErr) {
+      console.error('Audit Log Error:', adminErr || userErr);
       throw new Error('Failed to fetch system logs');
     }
 
-    // 3. Format Admin Logs
-    const formattedAdminLogs = adminLogs?.map(log => ({
-      id: log.id,
-      timestamp: log.created_at,
-      type: 'ADMIN_ACTION',
-      action: log.action,
-      user: log.profiles?.full_name || 'Admin',
-      phone: log.profiles?.phone || 'N/A',
-      details: `${log.action} on ${log.resource_type}${log.resource_id ? ` (${log.resource_id})` : ''}`,
-      metadata: log.details
-    })) ?? [];
+    // 3. Fetch profiles for all involved users
+    const adminIds = adminLogs?.map(l => l.admin_id).filter((id): id is string => !!id) ?? [];
+    const userIds = userActions?.map(a => a.user_id).filter((id): id is string => !!id) ?? [];
 
-    // 4. Format User Actions
-    const formattedUserActions = userActions?.map(action => ({
-      id: action.id,
-      timestamp: action.created_at,
-      type: 'USER_ACTIVITY',
-      action: action.type.toUpperCase(),
-      user: action.profiles?.full_name || 'User',
-      phone: action.profiles?.phone || action.recipient_phone || 'N/A',
-      details: `${action.type.replace('_', ' ')} ${action.status}: ${action.amount_pesewas / 100} GHS`,
-      metadata: { status: action.status, amount: action.amount_pesewas }
-    })) ?? [];
+    const allUserIds = [...new Set([...adminIds, ...userIds])];
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', allUserIds);
 
-    // 5. Merge and Sort
+    // 4. Format Admin Logs
+    const formattedAdminLogs = adminLogs?.map(log => {
+      const profile = profiles?.find(p => p.id === log.admin_id);
+      return {
+        id: log.id,
+        timestamp: log.created_at,
+        type: 'ADMIN_ACTION',
+        action: log.action,
+        user: profile?.full_name || 'Admin',
+        phone: profile?.phone || 'N/A',
+        details: `${log.action} on ${log.resource_type}${log.resource_id ? ` (${log.resource_id})` : ''}`,
+        metadata: log.details
+      };
+    }) ?? [];
+
+    // 5. Format User Actions
+    const formattedUserActions = userActions?.map(action => {
+      const profile = profiles?.find(p => p.id === action.user_id);
+      return {
+        id: action.id,
+        timestamp: action.created_at,
+        type: 'USER_ACTIVITY',
+        action: action.type.toUpperCase(),
+        user: profile?.full_name || 'User',
+        phone: profile?.phone || action.recipient_phone || 'N/A',
+        details: `${action.type.replace('_', ' ')} ${action.status}: ${action.amount_pesewas / 100} GHS`,
+        metadata: { status: action.status, amount: action.amount_pesewas }
+      };
+    }) ?? [];
+
+    // 6. Merge and Sort
     const combinedLogs = [...formattedAdminLogs, ...formattedUserActions]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 100);
