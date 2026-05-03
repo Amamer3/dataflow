@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getUserFromAccessToken } from '../../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 import { applyWalletDelta } from '../../server/wallet.server.js';
-import { deliverBundle } from '../../server/provider.server.js';
+import { fulfillTransaction } from '../../server/fulfillment.server.js';
 
 const router = express.Router();
 
@@ -86,59 +86,5 @@ router.post('/initiate', async (req, res) => {
     res.status(500).json({ error: (error as Error).message });
   }
 });
-
-async function fulfillTransaction(transactionId: string) {
-  const { data: txn } = await supabaseAdmin
-    .from('transactions')
-    .select('id, user_id, network, recipient_phone, amount_pesewas, bundle_id, retry_count')
-    .eq('id', transactionId)
-    .single();
-
-  if (!txn || !txn.network || !txn.recipient_phone || !txn.bundle_id) return;
-
-  const { data: bundle } = await supabaseAdmin
-    .from('bundles')
-    .select('volume_mb')
-    .eq('id', txn.bundle_id)
-    .single();
-
-  await supabaseAdmin
-    .from('transactions')
-    .update({ status: 'processing' })
-    .eq('id', transactionId);
-
-  const result = await deliverBundle({
-    network: txn.network as 'MTN' | 'TELECEL' | 'AIRTELTIGO',
-    phone: txn.recipient_phone,
-    volumeMb: bundle?.volume_mb ?? 0,
-  });
-
-  if (result.ok) {
-    await supabaseAdmin
-      .from('transactions')
-      .update({ status: 'success', provider_reference: result.reference })
-      .eq('id', transactionId);
-  } else {
-    await supabaseAdmin
-      .from('transactions')
-      .update({ status: 'failed', failure_reason: result.message })
-      .eq('id', transactionId);
-
-    const { data: full } = await supabaseAdmin
-      .from('transactions')
-      .select('metadata, amount_pesewas, user_id')
-      .eq('id', transactionId)
-      .single();
-
-    if (full && (full.metadata as any)?.payment_method === 'wallet') {
-      await applyWalletDelta({
-        userId: full.user_id,
-        deltaPesewas: Number(full.amount_pesewas),
-        reason: 'refund',
-        transactionId,
-      });
-    }
-  }
-}
 
 export default router;

@@ -5,6 +5,7 @@ import buyDataRoutes from './api/buy-data/index.js';
 import walletRoutes from './api/wallet/index.js';
 import adminRoutes from './api/admin/index.js';
 import apiRouter from './api/index.js';
+import paystackWebhook from './api/webhooks/paystack.js';
 import { openApiSpec } from './openapi.js';
 
 const app = express();
@@ -17,6 +18,9 @@ app.use(express.json());
 app.get('/', (_req, res) => {
   res.status(200).json({ message: 'Backend server is running', version: '1.0.0' });
 });
+
+// Webhooks
+app.use('/api/webhooks', paystackWebhook);
 
 // API docs
 app.use(

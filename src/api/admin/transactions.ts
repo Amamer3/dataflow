@@ -1,6 +1,7 @@
 import express from 'express';
 import { adminMiddleware, AuthRequest } from '../../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
+import { fulfillTransaction } from '../../server/fulfillment.server.js';
 
 const router = express.Router();
 
@@ -37,7 +38,6 @@ router.get('/', adminMiddleware, async (req: AuthRequest, res) => {
 
     if (profilesErr) {
       console.error('Error fetching profiles for transactions:', profilesErr);
-      // We can still return transactions even if profiles fail
     }
 
     // 3. Manually merge profiles into transactions
@@ -73,6 +73,34 @@ router.patch('/:id', adminMiddleware, async (req: AuthRequest, res) => {
   }
 
   res.status(200).json(data);
+});
+
+// POST /api/admin/transactions/:id/retry - Manually triggers a retry for a failed transaction
+router.post('/:id/retry', adminMiddleware, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { data: txn, error } = await supabaseAdmin
+      .from('transactions')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    if (error || !txn) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    if (txn.status === 'success') {
+      return res.status(400).json({ error: 'Transaction already successful' });
+    }
+
+    // Trigger fulfillment asynchronously
+    fulfillTransaction(id).catch(err => console.error(`Manual retry error for ${id}:`, err));
+
+    res.status(200).json({ message: 'Retry initiated' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET /api/admin/transactions/stuck - Fetches transactions that are stuck in 'pending' or 'processing'
