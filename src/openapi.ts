@@ -179,6 +179,117 @@ export const openApiSpec = {
         },
       },
     },
+    // Authentication Module
+    '/api/auth/register': {
+      post: {
+        summary: 'Register a new user',
+        tags: ['Authentication'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string' },
+                  password: { type: 'string' },
+                  full_name: { type: 'string' },
+                  phone: { type: 'string' }
+                },
+                required: ['email', 'password']
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'User registered' },
+          '400': { description: 'Registration failed' }
+        }
+      }
+    },
+    '/api/auth/login': {
+      post: {
+        summary: 'Login user',
+        tags: ['Authentication'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: { type: 'string' },
+                  password: { type: 'string' }
+                },
+                required: ['email', 'password']
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'Login successful' },
+          '401': { description: 'Invalid credentials' }
+        }
+      }
+    },
+    '/api/auth/logout': {
+      post: {
+        summary: 'Logout user',
+        tags: ['Authentication'],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'Logout successful' }
+        }
+      }
+    },
+    '/api/auth/refresh': {
+      post: {
+        summary: 'Refresh session',
+        tags: ['Authentication'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  refresh_token: { type: 'string' }
+                },
+                required: ['refresh_token']
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'Session refreshed' },
+          '401': { description: 'Invalid refresh token' }
+        }
+      }
+    },
+    '/api/auth/log-event': {
+      post: {
+        summary: 'Log auth event',
+        tags: ['Authentication'],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  event: { type: 'string', enum: ['LOGIN', 'LOGOUT'] }
+                },
+                required: ['event']
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'Event logged' }
+        }
+      }
+    },
     // Admin Module
     '/api/admin/users': {
       get: {

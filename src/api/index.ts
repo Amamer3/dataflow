@@ -1,6 +1,7 @@
 import express from 'express';
 import paystackKeyRouter from './paystack-public-key.js';
 import profileRoutes from './profile.js';
+import authRoutes from './auth.js';
 import { authMiddleware, AuthRequest } from '../integrations/supabase/auth-middleware.js';
 import { supabaseAdmin } from '../integrations/supabase/client.server.js';
 
@@ -8,6 +9,9 @@ const router = express.Router();
 
 // Profile routes
 router.use('/profile', profileRoutes);
+
+// Auth routes
+router.use('/auth', authRoutes);
 
 // Data Purchase general routes
 // GET /api/bundles - Lists all active data bundles available for purchase

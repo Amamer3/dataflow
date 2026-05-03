@@ -78,7 +78,7 @@ router.post('/wallet', adminMiddleware, async (req: AuthRequest, res) => {
   try {
     const result = await applyWalletDelta({
       userId,
-      deltaPesewas: amountPesewas,
+      deltaPesewas: Number(amountPesewas),
       reason: 'adjustment', // The user requested "adjustment" in the list of reasons or just general adjustment
       // We can use the reason from body if we map it correctly, but applyWalletDelta expects specific LedgerReason
     });

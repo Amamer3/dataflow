@@ -102,14 +102,19 @@ router.get('/logs', adminMiddleware, async (_req: AuthRequest, res) => {
     // 4. Format Admin Logs
     const formattedAdminLogs = adminLogs?.map(log => {
       const profile = profiles?.find(p => p.id === log.admin_id);
+      let details = `${log.action} on ${log.resource_type}${log.resource_id ? ` (${log.resource_id})` : ''}`;
+      
+      if (log.action === 'LOGIN') details = 'User logged into the system';
+      if (log.action === 'LOGOUT') details = 'User logged out of the system';
+
       return {
         id: log.id,
         timestamp: log.created_at,
-        type: 'ADMIN_ACTION',
+        type: log.action === 'LOGIN' || log.action === 'LOGOUT' ? 'AUTH_EVENT' : 'ADMIN_ACTION',
         action: log.action,
         user: profile?.full_name || 'Admin',
         phone: profile?.phone || 'N/A',
-        details: `${log.action} on ${log.resource_type}${log.resource_id ? ` (${log.resource_id})` : ''}`,
+        details,
         metadata: log.details
       };
     }) ?? [];

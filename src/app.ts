@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { apiReference } from '@scalar/express-api-reference';
@@ -38,6 +39,16 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/buy-data', buyDataRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api', apiRouter);
+
+// Global error handler
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled Error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error', 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);

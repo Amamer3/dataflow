@@ -7,7 +7,7 @@ const router = express.Router();
 
 const schema = z.object({
   accessToken: z.string().min(1), 
-  amountGhs: z.number().min(5).max(10000),
+  amountGhs: z.coerce.number().min(5).max(10000),
 });
 
 router.post('/topup', async (req, res) => {
