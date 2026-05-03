@@ -82,6 +82,16 @@ router.post('/wallet', adminMiddleware, async (req: AuthRequest, res) => {
       reason: 'adjustment', // The user requested "adjustment" in the list of reasons or just general adjustment
       // We can use the reason from body if we map it correctly, but applyWalletDelta expects specific LedgerReason
     });
+
+    // Log action
+    await supabaseAdmin.from('admin_audit_log').insert({
+      admin_id: req.user!.userId,
+      action: 'ADJUST_WALLET',
+      resource_type: 'USER',
+      resource_id: userId,
+      details: { amountPesewas, reason, balanceAfter: result.balanceAfter }
+    });
+
     res.status(200).json({ message: 'Wallet updated successfully', balanceAfter: result.balanceAfter });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -104,6 +114,15 @@ router.post('/status', adminMiddleware, async (req: AuthRequest, res) => {
   if (error) {
     return res.status(500).json({ error: error.message });
   }
+
+  // Log action
+  await supabaseAdmin.from('admin_audit_log').insert({
+    admin_id: req.user!.userId,
+    action: 'UPDATE_USER_ROLE',
+    resource_type: 'USER',
+    resource_id: userId,
+    details: { newRole: role }
+  });
 
   res.status(200).json({ message: 'User status updated successfully' });
 });

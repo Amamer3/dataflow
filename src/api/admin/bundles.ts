@@ -43,6 +43,15 @@ router.post('/', adminMiddleware, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: error.message });
   }
 
+  // Log action
+  await supabaseAdmin.from('admin_audit_log').insert({
+    admin_id: req.user!.userId,
+    action: 'CREATE_BUNDLE',
+    resource_type: 'BUNDLE',
+    resource_id: data.id,
+    details: { bundle: data }
+  });
+
   res.status(201).json(data);
 });
 
@@ -61,6 +70,15 @@ router.patch('/:id', adminMiddleware, async (req: AuthRequest, res) => {
   if (error) {
     return res.status(500).json({ error: error.message });
   }
+
+  // Log action
+  await supabaseAdmin.from('admin_audit_log').insert({
+    admin_id: req.user!.userId,
+    action: 'UPDATE_BUNDLE',
+    resource_type: 'BUNDLE',
+    resource_id: id,
+    details: { updates }
+  });
 
   res.status(200).json(data);
 });

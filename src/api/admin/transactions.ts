@@ -97,6 +97,15 @@ router.post('/:id/retry', adminMiddleware, async (req: AuthRequest, res) => {
     // Trigger fulfillment asynchronously
     fulfillTransaction(id).catch(err => console.error(`Manual retry error for ${id}:`, err));
 
+    // Log action
+    await supabaseAdmin.from('admin_audit_log').insert({
+      admin_id: req.user!.userId,
+      action: 'RETRY_TRANSACTION',
+      resource_type: 'TRANSACTION',
+      resource_id: id,
+      details: { previousStatus: txn.status }
+    });
+
     res.status(200).json({ message: 'Retry initiated' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

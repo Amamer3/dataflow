@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../../integrations/supabase/client.server.js';
 const router = express.Router();
 
 // GET /api/admin/stats - Provides summary statistics for the admin dashboard
-router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
+router.get('/stats', adminMiddleware, async (_req: AuthRequest, res) => {
   try {
     const { count: usersCount, error: usersErr } = await supabaseAdmin
       .from('profiles')
@@ -67,19 +67,64 @@ router.get('/stats', adminMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/admin/logs - Fetches system activity and monitoring logs
-router.get('/logs', adminMiddleware, async (req: AuthRequest, res) => {
-  // Mocking logs for now as there's no dedicated logs table
-  const mockLogs = [
-    { timestamp: new Date().toISOString(), level: 'info', message: 'Admin accessed stats dashboard' },
-    { timestamp: new Date(Date.now() - 3600000).toISOString(), level: 'warn', message: 'Provider Hubtel returned 500 error' },
-    { timestamp: new Date(Date.now() - 7200000).toISOString(), level: 'info', message: 'New user registered: 0244123456' },
-  ];
-  res.status(200).json(mockLogs);
+// GET /api/admin/logs - Fetches system activity and monitoring logs (Admin & User actions)
+router.get('/logs', adminMiddleware, async (_req: AuthRequest, res) => {
+  try {
+    // 1. Fetch Admin Audit Logs
+    const { data: adminLogs, error: adminErr } = await supabaseAdmin
+      .from('admin_audit_log')
+      .select('*, profiles:admin_id(full_name, phone)')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // 2. Fetch User Transaction Activity
+    const { data: userActions, error: userErr } = await supabaseAdmin
+      .from('transactions')
+      .select('id, created_at, type, status, amount_pesewas, recipient_phone, profiles:user_id(full_name, phone)')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (adminErr || userErr) {
+      throw new Error('Failed to fetch system logs');
+    }
+
+    // 3. Format Admin Logs
+    const formattedAdminLogs = adminLogs?.map(log => ({
+      id: log.id,
+      timestamp: log.created_at,
+      type: 'ADMIN_ACTION',
+      action: log.action,
+      user: log.profiles?.full_name || 'Admin',
+      phone: log.profiles?.phone || 'N/A',
+      details: `${log.action} on ${log.resource_type}${log.resource_id ? ` (${log.resource_id})` : ''}`,
+      metadata: log.details
+    })) ?? [];
+
+    // 4. Format User Actions
+    const formattedUserActions = userActions?.map(action => ({
+      id: action.id,
+      timestamp: action.created_at,
+      type: 'USER_ACTIVITY',
+      action: action.type.toUpperCase(),
+      user: action.profiles?.full_name || 'User',
+      phone: action.profiles?.phone || action.recipient_phone || 'N/A',
+      details: `${action.type.replace('_', ' ')} ${action.status}: ${action.amount_pesewas / 100} GHS`,
+      metadata: { status: action.status, amount: action.amount_pesewas }
+    })) ?? [];
+
+    // 5. Merge and Sort
+    const combinedLogs = [...formattedAdminLogs, ...formattedUserActions]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 100);
+
+    res.status(200).json(combinedLogs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET /api/admin/health - Provides system health metrics
-router.get('/health', adminMiddleware, async (req: AuthRequest, res) => {
+router.get('/health', adminMiddleware, async (_req: AuthRequest, res) => {
   try {
     const { data: recentTransactions, error } = await supabaseAdmin
       .from('transactions')
